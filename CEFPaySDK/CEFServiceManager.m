@@ -7,8 +7,21 @@
 //
 
 #import "CEFServiceManager.h"
+#import "Credantial.h"
+
+#define WeChat_URLTypesIdentifier @"wechatpay"
+#define Alipay_URLTypesIdentifier @"alipay"
+
+@interface CEFServiceManager ()
+
+// 保存URL_Schemes到字典里面
+@property (nonatomic, strong) NSMutableDictionary *URL_Schemes_Dic;
+
+@end
+
 
 @implementation CEFServiceManager
+
 
 
 + (instancetype)defaultManager {
@@ -49,4 +62,34 @@
     dispatch_semaphore_wait(semaphore,DISPATCH_TIME_FOREVER);
     return EID;
 }
+
+
+-(void)registerApp:(Channel)channel {
+
+    if (channel & WeChat) {
+        
+        [WXApi registerApp:CEFCredantial.wechatAppkey];
+    }
+    if (channel & Alipay) {
+        
+    }
+    if (channel & QQ) {
+        
+    }
+    if (channel & WeiBo) {
+        
+    }
+}
+
+
+
+#pragma mark -- Setter & Getter
+
+- (NSMutableDictionary *)URL_Schemes_Dic {
+    if (_URL_Schemes_Dic == nil) {
+        _URL_Schemes_Dic = [NSMutableDictionary dictionary];
+    }
+    return _URL_Schemes_Dic;
+}
+
 @end

@@ -12,20 +12,14 @@ typedef NS_ENUM(NSInteger, CEFServicePayResult){
 };
 
 
-typedef NS_OPTIONS(NSUInteger, Channel) {
-    WeChat     = 1 << 0,
-    Alipay     = 1 << 1,
-};
-
-typedef void(^QueryOrder)(NSDictionary*);
+typedef void(^QueryOrder)(NSDictionary * orderString,NSError *errorMessage);
+typedef void(^CloseOrder)(NSError *errorMessage);
 
 typedef void(^CEFServicePayResultCallBack)(CEFServicePayResult payResult, NSString *errorMessage, NSString *orderId);
-typedef void(^CreateOrderCompletion)(NSString* prepayId,NSString* partnerid,NSString* noncestr,NSString* timestamp,NSString* sign);
+typedef void(^CEFServiceGetDataCallBack)(NSError *errorMessage,NSString *orderId);
 
 @interface CEFServicePay : NSObject
 
-@property(nonatomic,copy)CreateOrderCompletion createOrderCompletion;
-@property(nonatomic,copy)QueryOrder queryOrder;
 
 + (instancetype)defaultManager;
 
@@ -33,23 +27,25 @@ typedef void(^CreateOrderCompletion)(NSString* prepayId,NSString* partnerid,NSSt
 
 - (BOOL)handleOpenURL:(NSURL *)url;
 
-- (void)CEFServicePayWithEID:(NSString *)EID
+- (NSData *)CEFServicePayWithEID:(NSString *)EID
                      channel:(Channel)channel
                      subject:(NSString *)subject
                  tradeNumber:(NSString *)tradeNumber
                       amount:(NSString *) amount
-                    callBack:(CEFServicePayResultCallBack)callBack;
+                    callBack:(CEFServiceGetDataCallBack)callBack;
 
-- (void)CEFServicePayWithParternerId:(NSString *)partnerId
-                            prepayId:(NSString *)prepayId
-                            nonceStr:(NSString *)nonceStr
-                           timeStamp:(NSString *)timeStamp
-                                sign:(NSString *)sign
-                            callBack:(CEFServicePayResultCallBack)callBack;
+//- (void)CEFServicePayWithParternerId:(NSString *)partnerId
+//                            prepayId:(NSString *)prepayId
+//                            nonceStr:(NSString *)nonceStr
+//                           timeStamp:(NSString *)timeStamp
+//                                sign:(NSString *)sign
+//                            callBack:(CEFServicePayResultCallBack)callBack;
 
-- (void)CEFCheckingOrderWithOrderId:(NSString *)orderId order:(QueryOrder)order;
+- (void)CEFServicePayWithChannel:(Channel)channel data:(NSData *)data callBack:(CEFServicePayResultCallBack)callBack;
 
-- (void)CEFServiceCloseOrder:(NSString *)orderId;
+- (void)CEFCheckingOrder:(NSString *)orderId order:(QueryOrder)order;
+
+- (void)CEFServiceCloseOrder:(NSString *)orderId callBack:(CloseOrder)callback;
 
 @end
 

@@ -1,21 +1,40 @@
-//
-//  AppDelegate.m
-//  CEFServicePayManager
-//
-//  Created by XLsn0w on 2017/4/21.
-//  Copyright © 2017年 XLsn0w. All rights reserved.
-//
+
+
+
+
+
+
+
+
+//微信开发者ID
+#define URL_APPID @"wxa186d3f0aa51c56e"
+#define URL_SECRET @"7c82bd6a2b1da97d78491a41c4166111"
+
+#define IFM_SinaAPPKey      @"2161062029"
+#define IFM_SinaAppSecret   @"8882ed1ca6c30b9b8794765ec3313a39"
+
+#define QQ_APPID @"1105567034"
+#define QQ_SECRET @"i9u9zTaunPX7JIzM"
+
 
 #import "AppDelegate.h"
 #import "AlipaySDK/AlipaySDK.h"
 
-@interface AppDelegate ()<CEFApiDelegate>
+@interface AppDelegate ()
 
 @end
 
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    
+    [CEFCredantial registerWeChatAppWithKey:URL_APPID Secret:URL_SECRET redirectURL:nil];
+    
+    CEFCredantial.weiboAppkey = IFM_SinaAPPKey;
+    CEFCredantial.weiboSecret = IFM_SinaAppSecret;
+    CEFCredantial.qqAppkey = QQ_APPID;
+    CEFCredantial.qqSecret = QQ_SECRET;
+    
     
     NSString *EID = [[NSUserDefaults standardUserDefaults] objectForKey:@"CUSTOM_EID"];
     
@@ -24,30 +43,11 @@
         [[NSUserDefaults standardUserDefaults]setObject:EID forKey:@"CUSTOM_EID"];
     }
     
-    [CEFPayManager registerPaymentWithEID:EID channel:(WeChat|Alipay) delegate:self];
-    
+    [[CEFServiceManager defaultManager] registerApp:(WeChat|Alipay)];
+  
     return YES;
 }
 
--(void)onResopnse:(CEFResponse *)CEFResponse {
-    
-    if (CEFResponse.type == WeChat_Pay) {
-        
-        switch (CEFResponse.errCode) {
-            case 0:
-//                订单支付成功
-                break;
-            case -1:
-//                订单支付失败
-                break;
-            case -2:
-//                用户中途取消
-                break;
-            default:
-                break;
-        }
-    }
-}
 #pragma mark - 微信支付&支付宝SDK
 ////
 - (BOOL)application:(UIApplication *)application handleOpenURL:(NSURL *)url {

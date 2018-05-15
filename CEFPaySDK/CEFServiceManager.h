@@ -9,6 +9,16 @@
 
 #import "CEFResponse.h"
 #import <Foundation/Foundation.h>
+#import "Credantial.h"
+
+
+typedef NS_OPTIONS(NSUInteger, Channel) {
+    WeChat     = 1 << 0,
+    Alipay     = 1 << 1,
+    WeiBo      = 1 << 2,
+    QQ         = 1 << 3
+};
+
 
 @protocol CEFApiDelegate <NSObject>
 
@@ -23,8 +33,8 @@
 @property(nonatomic,weak)id<CEFApiDelegate> CEFApiDel;
 
 + (instancetype)defaultManager;
-+(NSString *)createEIDwithTags:(NSArray*)tags customId:(NSString*)customId;
-
++ (NSString *)createEIDwithTags:(NSArray*)tags customId:(NSString*)customId;
+- (void)registerApp:(Channel)channel;
 @end
 
 

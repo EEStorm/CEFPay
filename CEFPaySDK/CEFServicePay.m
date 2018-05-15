@@ -53,7 +53,6 @@
 
 - (void)registerPaymentWithEID:(NSString *)EID channel:(Channel)channel delegate:(id<CEFApiDelegate>)delegate{
     
-    [CEFServiceManager defaultManager].CEFApiDel = delegate;
     
     NSString *Info_plist_path = [[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"];
     NSDictionary *Info_plist_dic = [NSDictionary dictionaryWithContentsOfFile:Info_plist_path];
@@ -87,30 +86,9 @@
 }
 
 #pragma mark - Create PrepayID
--(void)CEFServicePayWithEID:(NSString *)EID channel:(Channel)channel subject:(NSString *)subject tradeNumber:(NSString *)tradeNumber amount:(NSString *)amount callBack:(CEFServicePayResultCallBack)callBack{
+-(NSData *)CEFServicePayWithEID:(NSString *)EID channel:(Channel)channel subject:(NSString *)subject tradeNumber:(NSString *)tradeNumber amount:(NSString *)amount callBack:(CEFServiceGetDataCallBack)callBack{
     
-    self.callBack = callBack;
-    
-    [CEFPayManager requestOrderPrepayId: EID channel:channel subject:subject tradeNumber:tradeNumber amount:amount createOrderCompletion:^(NSString *prepayId,NSString* partnerid,NSString* noncestr,NSString* timestamp,NSString* sign) {
-        
-        
-        PayReq *req = [[PayReq alloc] init];
-        req.partnerId = partnerid;
-        req.prepayId= prepayId;
-        req.package = @"Sign=WXPay";
-        req.nonceStr= noncestr;
-        req.timeStamp= timestamp.intValue;
-        
-        req.sign= sign;
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [CEFPayManager CEFServicePayWithOrder:req callBack:callBack];
-        });
-    }];
-}
-
-
--(void)requestOrderPrepayId:(NSString *)EID channel:(Channel)channel subject:(NSString *)subject tradeNumber:(NSString *)tradeNumber amount:(NSString *) amount createOrderCompletion:(CreateOrderCompletion)createOrder{
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
     
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://xzshengpaymentstaging.eastasia.cloudapp.azure.com/serviceProviders/payment/createOrder"]];
     
@@ -126,26 +104,80 @@
     NSData *data = [NSJSONSerialization dataWithJSONObject:dictPramas options:0 error:nil];
     request.HTTPBody = data;
     
+    NSMutableData *respData = [NSMutableData dataWithCapacity:5];
     NSURLSession *session = [NSURLSession sharedSession];
     NSURLSessionDataTask *sessionDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingMutableLeaves) error:nil];
         
-        NSDictionary *properties = (NSDictionary *)[dict objectForKey:@"properties"];
+        if (data) {
+            
+            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingMutableLeaves) error:nil];
+            [respData appendData:data];
+            
+            NSDictionary *properties = (NSDictionary *)[dict objectForKey:@"properties"];
+            
+            NSString *orderId = [properties objectForKey:@"orderId"];
+            self.orderId = orderId;
+            
+            callBack(error,orderId);
+            
+            [[NSUserDefaults standardUserDefaults]setBool:false forKey:@"PAYSUCCESS"];
+        }else {
+            callBack(error,@"unknown");
+        }
         
-        NSString *prepayId = [properties objectForKey:@"prepayid"];
-        NSString *partnerid = [properties objectForKey:@"partnerid"];
-        NSString *noncestr = [properties objectForKey:@"noncestr"];
-        NSString *timestamp = [properties objectForKey:@"timestamp"];
-        NSString *sign = [properties objectForKey:@"sign"];
-        NSString *orderId = [properties objectForKey:@"orderId"];
-        self.orderId = orderId;
-        createOrder(prepayId,partnerid,noncestr,timestamp,sign);
-        NSLog(@"%@",prepayId);
-        
-        
-        [[NSUserDefaults standardUserDefaults]setBool:false forKey:@"PAYSUCCESS"];
+        dispatch_semaphore_signal(semaphore);
     }];
     [sessionDataTask resume];
+    
+    dispatch_semaphore_wait(semaphore,DISPATCH_TIME_FOREVER);
+
+    return respData;
+}
+
+-(void)CEFServicePayWithChannel:(Channel)channel data:(NSData *)data callBack:(CEFServicePayResultCallBack)callBack{
+    
+    self.callBack = callBack;
+    
+    if (data) {
+        NSMutableDictionary *respDict= [NSMutableDictionary dictionaryWithCapacity:5];
+        
+        @try {
+            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingMutableLeaves) error:nil];
+            [respDict addEntriesFromDictionary:dict];
+        }
+        
+        @catch (NSException *exception) {
+            NSString *errStr = @"JSON数据有误";
+            callBack(CEFServicePayResultFailure,errStr,nil);
+        }
+        
+        @finally {
+            NSDictionary *properties = (NSDictionary *)[respDict objectForKey:@"properties"];
+            
+            NSString *prepayId = [properties objectForKey:@"prepayid"];
+            NSString *partnerid = [properties objectForKey:@"partnerid"];
+            NSString *noncestr = [properties objectForKey:@"noncestr"];
+            NSString *timestamp = [properties objectForKey:@"timestamp"];
+            NSString *sign = [properties objectForKey:@"sign"];
+            NSString *orderId = [properties objectForKey:@"orderId"];
+            self.orderId = orderId;
+            
+            PayReq *req = [[PayReq alloc] init];
+            req.partnerId = partnerid;
+            req.prepayId= prepayId;
+            req.package = @"Sign=WXPay";
+            req.nonceStr= noncestr;
+            req.timeStamp= timestamp.intValue;
+    
+            req.sign= sign;
+    
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [CEFPayManager CEFServicePayWithOrder:req callBack:callBack];
+            });
+        }
+    }else {
+        callBack(CEFServicePayResultFailure,@"数据为空",nil);
+    }
     
 }
 
@@ -156,35 +188,13 @@
     
     if ([order isKindOfClass:[PayReq class]]) {
         
-        NSAssert(self.URL_Schemes_Dic[WeChat_URLTypesIdentifier], addURLSchemes(WeChat_URLTypesIdentifier));
-        
         [WXApi sendReq:(PayReq *)order];
     }
 }
 
-#pragma mark With Parameter
--(void)CEFServicePayWithParternerId:(NSString *)partnerId prepayId:(NSString *)prepayId nonceStr:(NSString *)nonceStr timeStamp:(NSString *)timeStamp sign:(NSString *)sign callBack:(CEFServicePayResultCallBack)callBack {
-    
-    PayReq *req = [[PayReq alloc] init];
-    req.partnerId = partnerId;
-    req.prepayId= prepayId;
-    req.package = WeChat_Package;
-    req.nonceStr= nonceStr;
-    req.timeStamp= timeStamp.intValue;
-    
-    req.sign= sign;
-    
-    self.callBack = callBack;
-    
-    NSAssert(self.URL_Schemes_Dic[WeChat_URLTypesIdentifier], addURLSchemes(WeChat_URLTypesIdentifier));
-    
-    [WXApi sendReq:(PayReq *)req];
-    
-}
-
 #pragma mark - Checking Order
 
--(void)CEFCheckingOrderWithOrderId:(NSString *)orderId order:(QueryOrder)order{
+-(void)CEFCheckingOrder:(NSString *)orderId order:(QueryOrder)order{
     
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://xzshengpaymentstaging.eastasia.cloudapp.azure.com/serviceProviders/payment/queryOrder"]];
     
@@ -197,12 +207,17 @@
     
     NSURLSession *session = [NSURLSession sharedSession];
     NSURLSessionDataTask *sessionDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
-        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingMutableLeaves) error:nil];
-        
-        NSDictionary *properties = (NSDictionary *)[dict objectForKey:@"properties"];
-
-        NSLog(@"%@",properties);
-        order(properties);
+        if (error) {
+            order(nil,error);
+        }else {
+            
+            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingMutableLeaves) error:nil];
+            
+            NSDictionary *properties = (NSDictionary *)[dict objectForKey:@"properties"];
+            
+            NSLog(@"%@",properties);
+            order(properties,error);
+        }
     }];
     [sessionDataTask resume];
 }
@@ -229,14 +244,8 @@
 #pragma mark - WXApiDelegate
 - (void)onResp:(BaseResp *)resp {
     //
-    CEFResponse *cefresp = [[CEFResponse alloc]init];
-    cefresp.errCode = resp.errCode;
-    cefresp.errStr = resp.errStr;
     
     if([resp isKindOfClass:[PayResp class]]){
-        
-        cefresp.type = WeChat_Pay;
-        [[CEFServiceManager defaultManager].CEFApiDel onResopnse:cefresp];
         
         CEFServicePayResult errorCode = CEFServicePayResultSuccess;
         NSString *errStr = resp.errStr;
